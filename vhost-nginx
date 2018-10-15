@@ -21,7 +21,7 @@ echo "creating folders necessary to run this script on non-AWS centos machines, 
 mkdir -p /home/centos && mkdir -p /home/centos/newcerts && mkdir -p /home/centos/newkeys;
 mkdir -p /root/newcerts && mkdir -p /root/newkeys;
 mkdir -p /var/www/WebProduction/ && chown nginx.nginx /var/www/WebProduction;
-sleep 3
+sleep 2
 echo "ensuring /etc/ssl/certs symlink exists"
 ln -sf /etc/ssl/ /etc/pki/tls/certs;
 sleep 2
@@ -30,13 +30,13 @@ if [ "$(whoami)" != 'root' ]; then
 		exit 1;
 fi
 
-if [ "$action" != 'create' ] && [ "$action" != 'delete' ] && [ "$action" != 'makecert' ]
+if [ "${action}" != 'create' ] && [ "${action}" != 'makecert' ] && [ "${action}" != 'delete' ]
 	then
 		echo $"You need to prompt for action (create delete or makecert) -- Lower-case only"
 		exit 1;
 fi
 
-while [ "$domain" == "" ]
+while [ "${domain}" == "" ]
 do
 	echo -e $"Please provide domain. e.g.dev,staging"
 	read -r domain
@@ -47,13 +47,13 @@ if [ "$rootDir" == "" ]; then
 fi
 
 ### if root dir starts with '/', don't use /var/www as default starting point
-if [[ "$rootDir" =~ ^/ ]]; then
+if [[ "${rootDir}" =~ ^/ ]]; then
 	userDir=''
 fi
 
 rootDir="${rootDir}"
 
-if [ "$action" == 'create' ];
+if [ "${action}" == 'create' ];
 	then
 		### check if domain already exists
 		if [ -e "${sitesAvailable}${domain}" ]; then
@@ -70,14 +70,14 @@ if [ "$action" == 'create' ];
 			### write test file in the new domain dir
 			if ! echo "<?php echo phpinfo(); ?>" > "${rootDir}"/phpinfo.php
 				then
-					echo $"ERROR: Not able to write in file $userDir/$rootDir/phpinfo.php. Please check permissions."
+					echo $"ERROR: Not able to write in file ${userDir}/${rootDir}/phpinfo.php. Please check permissions."
 					exit;
 			else
-					echo $"phpinfo file added to $rootDir/phpinfo.php."
+					echo $"phpinfo file added to ${rootDir}/phpinfo.php."
 			fi
 		fi
 				###Create Self-Signed Certificate
-				openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/pki/tls/private/"${domain}.key" -out /etc/ssl/certs/"${domain.crt}"
+				openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/pki/tls/private/"${domain}.key" -out /etc/ssl/certs/"${domain}.crt"
 		### create virtual host rules file
 		if ! echo "server {
 
@@ -165,7 +165,7 @@ expires 7d;
 			fi
 		fi
 
-		if [ "$owner" == "" ]; then
+		if [ "${owner}" == "" ]; then
 			chown -R "$(whoami)":nginx "${rootDir}"
 		else
 			chown -R "${owner}":nginx "${rootDir}"
@@ -182,9 +182,20 @@ expires 7d;
 		exit;
 	
 		### check whether domain already exists
-		if ! [ -e "${sitesAvailable}${domain}" ]; then
-			echo -e $"This domain doesn't exist.\nPlease Try Another one"
-			exit;
+		if [ "${action}" == 'delete' ]; then
+				echo "Preparing to remove $domain";		
+					while true; do
+								read -r -p "Are your sure you wish to delete this site? (y/n)" yn
+									case $yn in
+										[Yy]* ) break;;
+										[Nn]* ) echo "didn't thinks so.." && exit 1;;
+											* ) echo "Please answer yes or no.";;
+														esac
+											done;
+			if ! [ -e "${sitesAvailable}${domain}" ]; then
+			echo -e $"This domain doesn't exist.\nPlease Try Another one";
+			
+			fi
 		else 
 			### Delete domain in /etc/hosts
 			newhost="${domain//./\\.}"
@@ -214,10 +225,10 @@ expires 7d;
 
 		### check if directory exists or not
 		if [ -d "${rootDir}" ]; then
-			echo -e $"Delete host root directory at /var/www/WebProduction/$domain ? (y/n)"
+			echo -e $"Delete host root directory at $rootDir$domain ? (y/n)"
 			read -r deldir
 
-			if [ "$deldir" == 'y' ] || [ "$deldir" == 'Y' ] ; then
+			if [ "$deldir" == 'y' ] || [ "$deldir" == 'Y' ]; then
 				### Delete the directory
 				rm -rf "${rootDir}"
 				echo -e $"Directory deleted"
@@ -233,58 +244,57 @@ expires 7d;
 		### show the finished message
 		echo -e $"Complete!\nYou just removed Virtual Host $domain"
 		exit;
-		
-		
+	
 fi	
 
 		### Replacing self-signed certificate
-	if [ "$action" == 'makecert' ];
+	if [ "$action" != 'delete' ];
 			
 						##### Begin Interrogation, You do not have the right to remain silent ###
 						
 									then while true; do
-													read -r -p "Have you placed your SSL certificate in /home/centos/newcerts while making sure it has a .crt file extension?" yn
+													read -r -p "Have you placed your SSL certificate in /home/centos/newcerts while making sure it has a .crt file extension? (y/n)" yn
 											case $yn in
 												[Yy]* ) break;;
 												[Nn]* ) echo "Gosh dangit dale.." && exit 1;;
 													* ) echo "Please answer yes or no.";;
 																esac
 													done;
-													while [ "$action" == 'makecert' ]; do
-													read -r -p "Have you placed your SSL certificate CA in /home/centos/newcerts while making sure it has a .ca-bundle file extension? (Rename the file if it is .crt, .cert, etc)" yn
+													while [ "$action" != 'delete' ]; do
+													read -r -p "Have you placed your SSL certificate CA in /home/centos/newcerts while making sure it has a .ca-bundle file extension? (Rename the file if it is .crt, .cert, etc) (y/n)" yn
 											case $yn in
 												[Yy]* ) skipbundle=true && break;;
 												[Nn]* ) echo "Oh.. So I either look like a Certificate Authority to you or.." && break;;
 													* ) echo "Please answer yes or no.";;
 																esac
 													done;
-													while [ "$skipbundle" != "true" ] && [ "$action" == 'makecert' ]; do
-													read -r -p "Did your SSL Certificate come with a CA Bundle or Intermediate Certificate File?" yn 
+													while [ "$skipbundle" != "true" ] && [ "$action" != 'delete' ]; do
+													read -r -p "Did your SSL Certificate come with a CA Bundle or Intermediate Certificate File? (y/n)" yn 
 											case $yn in
 												[Yy]* ) echo "FAIL, You were supposed to upload it. Try again." && exit 1;;
 												[Nn]* ) echo "Ok, good. There's hope for you yet."&& CA_needed=false && break;;
 													* ) echo "Please answer yes or no.";;
 																esac
 													 done;
-													while [ "$action" == 'makecert' ]; do
-													read -r -p "Have you placed your SSL Private Key in /home/centos/newkeys while making sure it has a .key file extension?" yn
+													while [ "$action" != 'delete' ]; do
+													read -r -p "Have you placed your SSL Private Key in /home/centos/newkeys while making sure it has a .key file extension? (y/n)" yn
 											case $yn in
 												[Yy]* ) break 2;;
-												[Nn]* ) echo "Is your name Morty by chance? SSL certificates cannot be installed without a private key" && exit 1;;
+												[Nn]* ) echo "Is your name Morty by chance? SSL certificates cannot be installed without a private key (y/n)" && exit 1;;
 													* ) echo "Please answer yes or no.";;
 																esac
 													done;
 		
 		
 			### If there is a CA Bundle 
-		elif [ "$action" == 'makecert' ];
+		elif [ "$action" != 'delete' ];
 	    then cp -Rfv /home/centos/newcerts/* /root/newcerts/ && chown -Rfv root.root /root/newcerts/ && cp -Rfv /home/centos/newkeys/* /root/newkeys/ && chown -Rfv root.root /root/newkeys/
 			echo "Certificates and Keys have been moved into their staging directories at /root/newcerts and /root/newkeys"
 					
 		fi
 
 	
-	if [ "$action" == 'makecert' ];
+	if [ "$action" != 'delete' ];
 				then echo "Please note, you have 3 seconds to stop the script at each of these 3 steps before action is taken."
 	sleep 3
 				find ~/newcerts -type f -name "*.crt" -not -name "$domain.crt" \
@@ -297,23 +307,23 @@ fi
 			if [ "$CA_needed" = 'false' ]; 
 				then mv "${domain}.crt" /etc/ssl/certs && echo "SSL Certificate installed successfully without CA Bundle"
 			
-		elif [ "$CA_needed" != 'false' ] && [ "$action" == 'makecert' ];
+		elif [ "$CA_needed" != 'false' ] && [ "$action" != 'delete' ];
 			then echo "Preparing to Combine Certificate And CA Bundle"
-					elif  [ "$CA_needed" != 'false' ] && [ "$action" == 'makecert' ];
+					elif  [ "$CA_needed" != 'false' ] && [ "$action" != 'delete' ];
 						then find /root/newcerts -type f -name "*.ca-bundle" -not -name "$domain.ca-bundle" \
            -execdir mv -v {} "${domain}.ca-bundle" \;
-			elif [ "$CA_needed" != 'false' ] && [ "$action" == 'makecert' ];
+			elif [ "$CA_needed" != 'false' ] && [ "$action" != 'delete' ];
 		then
 			cat /root/newcerts/"${domain}.ca-bundle" >> /root/newcerts/"${domain}.crt" && echo "Certificates merged successfully"
 
 		
 			
-				elif [ "$CA_needed" != 'false' ] && [ "$action" == 'makecert' ];
+				elif [ "$CA_needed" != 'false' ] && [ "$action" != 'delete' ];
 					then mv /root/newcerts/"${domain}.crt" /etc/ssl/certs
 						elif [ "$action" == 'makecert' ];
 							then echo "Certificate and CA Bundle Installed Successfully"
 				
-				elif [ "$CA_needed" != 'false' ] && [ "$action" == 'makecert' ];
+				elif [ "$CA_needed" != 'false' ] && [ "$action" != 'delete' ];
 				then echo "Make sure you've uploaded your certificate(s) and private key in the previously instructed formats"
 				 
 				 exit 1;
@@ -325,7 +335,7 @@ fi
 	
 	#fi
 	sleep 2		
-			if [ "$CA_needed" != 'false' ] && [ "$action" == 'makecert' ];
+			if [ "$CA_needed" != 'false' ] && [ "$action" != 'delete' ];
 				then echo "Placing Private Key"
 				else exit;
 			fi
@@ -338,9 +348,9 @@ fi
            -execdir mv -v {} "${domain}.key" \; && mv /root/newkeys/"${domain}.key" /etc/pki/tls/private &&  echo "Private key installed successfully, check to see if the cert is working over HTTPS.. Or did you think I was going to handle that part too?"			 
 
 #	mv *.key $domain.key && mv $domain.key /etc/pki/tls/private
-	         elif [ "$action" != 'delete' ] && [ "$action" == 'makecert' ];
+	         else 
 			 
-		then echo "Something went wrong. Review this script to ensure it is current with your OS version or distribution and get your sh!t together."
+		echo "Something went wrong. Review this script to ensure it is current with your OS version or distribution and get your sh!t together."
 	 exit 1;
        fi       
 

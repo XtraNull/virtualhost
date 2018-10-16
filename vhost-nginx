@@ -14,6 +14,7 @@ userDir='/var/www/WebProduction/'
 
 # Dependency folder creation
 echo "creating folders necessary to run this script on non-AWS centos machines, if not exists"
+mkdir -p /etc/nginx/sites-enabled/ && mkdir -p /etc/nginx/sites-available/
 mkdir -p /home/centos && mkdir -p /home/centos/newcerts && mkdir -p /home/centos/newkeys;
 mkdir -p /root/newcerts && mkdir -p /root/newkeys;
 mkdir -p /var/www/WebProduction/ && chown nginx.nginx /var/www/WebProduction;
@@ -369,3 +370,4 @@ fi
 				then exit 0;
 					fi       
 fi
+

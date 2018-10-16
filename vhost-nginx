@@ -1,9 +1,5 @@
 #!/bin/bash
 ### Set Language
-exec 5> >(logger -t "$0")
-BASH_XTRACEFD="5"
-PS4='$LINENO: '
-set -x
 TEXTDOMAIN=virtualhost
 ## kudos to  https://github.com/RoverWire/virtualhost/blob/master/virtualhost-nginx.sh for the neat headstart 
 ### Set default parameters
@@ -30,7 +26,7 @@ if [ "$(whoami)" != 'root' ]; then
 		exit 1;
 fi
 
-if [ "${action}" != 'create' ] && [ "${action}" != 'makecert' ] && [ "${action}" != 'delete' ]
+if [ "${action}" != 'create' ] && [ "${action}" != 'makecert' ] && [ "${action}" != 'remove' ]
 	then
 		echo $"You need to prompt for action (create delete or makecert) -- Lower-case only"
 		exit 1;
@@ -178,21 +174,14 @@ expires 7d;
 		service nginx restart
 
 		### show the finished message
-		echo -e $"Complete! \nYou now have a new Virtual Host \nYour new host is: http://$domain \nAnd its located at $rootDir"
+		echo -e $"Complete! \nYou now have a new Virtual Host \nYour new host is: http://$domain \nAnd its located at $userDir$rootDir"
 		exit;
-	
+	else
 		### check whether domain already exists
-		if [ "${action}" == 'delete' ]; then
-				echo "Preparing to remove $domain";		
-					while true; do
-								read -r -p "Are your sure you wish to delete this site? (y/n)" yn
-									case $yn in
-										[Yy]* ) break;;
-										[Nn]* ) echo "didn't thinks so.." && exit 1;;
-											* ) echo "Please answer yes or no.";;
-														esac
-											done;
-			if ! [ -e "${sitesAvailable}${domain}" ]; then
+		if ! [ -e "${sitesAvailable}${domain}" ]; then
+			echo "Preparing to remove $domain";		
+
+			if ! [ -e "${sitesAvailable}${domain}" ] && [ "${action}" == 'remove' ]; then
 			echo -e $"This domain doesn't exist.\nPlease Try Another one";
 			
 			fi
@@ -201,7 +190,7 @@ expires 7d;
 			newhost="${domain//./\\.}"
 			sed -i "/$newhost/d" /etc/hosts
 
-			### Delete domain in /mnt/c/Windows/System32/drivers/etc/hosts (Windows Subsytem for Linux)
+			### Delete domain in /mnt/c/Windows/System32/drivers/etc/hosts (Windows Subsystem for Linux)
 			if [ -e /mnt/c/Windows/System32/drivers/etc/hosts ]
 			then
 				newhost="${domain//./\\.}"
@@ -209,50 +198,75 @@ expires 7d;
 			fi
 
 			### disable website
+		if [ "$action" == 'remove' ]; then
+			echo -e $"Would you like to disable $domain ? (y/n)"
+			read -r delsym
+					
+			if [ "$delsym" == 'y' ] || [ "$delsym" == 'Y' ]; then
+				### Delete the certs
 			rm "${sitesEnable}${domain}"
-
-			### restart Nginx
+				### restart Nginx
 			service nginx restart
-
+				else echo "You must've entered the remove action by accident"
+				exit 0;
+			fi
+		fi
 			### Delete virtual host rules files
-			#rm $sitesAvailable$domain
-			
+		if [ "$action" == 'remove' ]; then	
+			echo -e $"Would you like to delete the config file for $domain (This CANT be undone)? (y/n)"
+			read -r delcnf
+
+			if [ "$delcnf" == 'y' ] || [ "$delcnf" == 'Y' ]; then
+			rm "${sitesAvailable}${domain}"
+				else echo "The configuration file has been preserved, use ln -s /etc/nginx/sites-enabled /etc/nginx/sites-available/$domain to re-enable"
+					fi
+		fi			
 			### Delete SSL Certificate
-			rm /etc/ssl/certs/"${domain}.crt"
-			rm /etc/pki/tls/private/"${domain}.key"
-			exit;
+		if [ "$action" == 'remove' ]; then	
+			echo -e $"Delete SSL Certificates and Keys? (y/n)"
+			read -r delcrt
+
+			if [ "$delcrt" == 'y' ] || [ "$delcrt" == 'Y' ]; then
+				### Delete the certs
+				rm /etc/ssl/certs/"${domain}.crt"
+				rm /etc/pki/tls/private/"${domain}.key"
+				echo -e $"Certs and Keys deleted"
+			else			 
+					echo -e $"SSL Certificate and Key Remains"
+			fi
+		fi	
+			
 		fi
 
 		### check if directory exists or not
+	if [ "$action" == 'remove' ]; then	
 		if [ -d "${rootDir}" ]; then
-			echo -e $"Delete host root directory at $rootDir$domain ? (y/n)"
+			echo -e $"Delete host root directory at $userDir ? (y/n)"
 			read -r deldir
 
 			if [ "$deldir" == 'y' ] || [ "$deldir" == 'Y' ]; then
 				### Delete the directory
 				rm -rf "${rootDir}"
 				echo -e $"Directory deleted"
-			
-				else
-				 
+			else			 
 					echo -e $"Host directory remains"
 			fi
 		else
 			echo -e $"Host directory not found. Ignored"
 		fi
-
-		### show the finished message
-		echo -e $"Complete!\nYou just removed Virtual Host $domain"
-		exit;
 	
+		### show the finished message
+		echo -e $"Complete!\nYou just removed $domain"
+		exit 0;
+	fi
 fi	
 
 		### Replacing self-signed certificate
-	if [ "$action" != 'delete' ];
+	if [ "$action" != 'remove' ];
 			
 						##### Begin Interrogation, You do not have the right to remain silent ###
 						
-									then while true; do
+									then while [ "$action" != 'remove' ]; do
 													read -r -p "Have you placed your SSL certificate in /home/centos/newcerts while making sure it has a .crt file extension? (y/n)" yn
 											case $yn in
 												[Yy]* ) break;;
@@ -279,22 +293,21 @@ fi
 													while [ "$action" != 'delete' ]; do
 													read -r -p "Have you placed your SSL Private Key in /home/centos/newkeys while making sure it has a .key file extension? (y/n)" yn
 											case $yn in
-												[Yy]* ) break 2;;
-												[Nn]* ) echo "Is your name Morty by chance? SSL certificates cannot be installed without a private key (y/n)" && exit 1;;
+												[Yy]* ) break;;
+												[Nn]* ) echo "Is your name Morty by chance? SSL certificates cannot be installed without a private key" && exit 1;;
 													* ) echo "Please answer yes or no.";;
 																esac
 													done;
-		
-		
+
 			### If there is a CA Bundle 
-		elif [ "$action" != 'delete' ];
+		elif [ "$action" != 'remove' ];
 	    then cp -Rfv /home/centos/newcerts/* /root/newcerts/ && chown -Rfv root.root /root/newcerts/ && cp -Rfv /home/centos/newkeys/* /root/newkeys/ && chown -Rfv root.root /root/newkeys/
 			echo "Certificates and Keys have been moved into their staging directories at /root/newcerts and /root/newkeys"
 					
 		fi
 
 	
-	if [ "$action" != 'delete' ];
+	if [ "$action" != 'remove' ];
 				then echo "Please note, you have 3 seconds to stop the script at each of these 3 steps before action is taken."
 	sleep 3
 				find ~/newcerts -type f -name "*.crt" -not -name "$domain.crt" \
@@ -307,23 +320,23 @@ fi
 			if [ "$CA_needed" = 'false' ]; 
 				then mv "${domain}.crt" /etc/ssl/certs && echo "SSL Certificate installed successfully without CA Bundle"
 			
-		elif [ "$CA_needed" != 'false' ] && [ "$action" != 'delete' ];
+		elif [ "$CA_needed" != 'false' ] && [ "$action" != 'remove' ];
 			then echo "Preparing to Combine Certificate And CA Bundle"
-					elif  [ "$CA_needed" != 'false' ] && [ "$action" != 'delete' ];
+					elif  [ "$CA_needed" != 'false' ] && [ "$action" != 'remove' ];
 						then find /root/newcerts -type f -name "*.ca-bundle" -not -name "$domain.ca-bundle" \
            -execdir mv -v {} "${domain}.ca-bundle" \;
-			elif [ "$CA_needed" != 'false' ] && [ "$action" != 'delete' ];
+			elif [ "$CA_needed" != 'false' ] && [ "$action" != 'remove' ];
 		then
 			cat /root/newcerts/"${domain}.ca-bundle" >> /root/newcerts/"${domain}.crt" && echo "Certificates merged successfully"
 
 		
 			
-				elif [ "$CA_needed" != 'false' ] && [ "$action" != 'delete' ];
+				elif [ "$CA_needed" != 'false' ] && [ "$action" != 'remove' ];
 					then mv /root/newcerts/"${domain}.crt" /etc/ssl/certs
 						elif [ "$action" == 'makecert' ];
 							then echo "Certificate and CA Bundle Installed Successfully"
 				
-				elif [ "$CA_needed" != 'false' ] && [ "$action" != 'delete' ];
+				elif [ "$CA_needed" != 'false' ] && [ "$action" != 'remove' ];
 				then echo "Make sure you've uploaded your certificate(s) and private key in the previously instructed formats"
 				 
 				 exit 1;
@@ -335,7 +348,7 @@ fi
 	
 	#fi
 	sleep 2		
-			if [ "$CA_needed" != 'false' ] && [ "$action" != 'delete' ];
+			if [ "$CA_needed" != 'false' ] && [ "$action" != 'remove' ];
 				then echo "Placing Private Key"
 				else exit;
 			fi
@@ -348,9 +361,11 @@ fi
            -execdir mv -v {} "${domain}.key" \; && mv /root/newkeys/"${domain}.key" /etc/pki/tls/private &&  echo "Private key installed successfully, check to see if the cert is working over HTTPS.. Or did you think I was going to handle that part too?"			 
 
 #	mv *.key $domain.key && mv $domain.key /etc/pki/tls/private
-	         else 
-			 
-		echo "Something went wrong. Review this script to ensure it is current with your OS version or distribution and get your sh!t together."
-	 exit 1;
-       fi       
-
+	         elif [ "$action" == 'makecert' ];
+			 		echo "Something went wrong. Review this script to ensure it is current with your OS version or distribution and get your sh!t together."
+			then
+	exit 1;
+			if [ "$action" == 'remove' ];
+				then exit 0;
+					fi       
+fi

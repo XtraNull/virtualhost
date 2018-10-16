@@ -23,7 +23,8 @@ $ chmod +x /path/to/virtualhost.sh
 Basic command line syntax:
 
 ```bash
-$ sudo sh /path/to/virtualhost.sh [create | delete | makecert] [domain] [optional host_dir]
+cd ~
+./vhost-nginx [create | delete | makecert] [domain] [optional host_dir]
 ```
 
 With script installed on /usr/local/bin

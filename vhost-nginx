@@ -29,7 +29,7 @@ fi
 
 if [ "${action}" != 'create' ] && [ "${action}" != 'makecert' ] && [ "${action}" != 'remove' ]
 	then
-		echo $"You need to prompt for action (create delete or makecert) -- Lower-case only"
+		echo $"You need to prompt for action (create remove or makecert) -- Lower-case only"
 		exit 1;
 fi
 
@@ -299,49 +299,56 @@ fi
 													* ) echo "Please answer yes or no.";;
 																esac
 													done;
-
+fi
 			### If there is a CA Bundle 
-		elif [ "$action" != 'remove' ];
-	    then cp -Rfv /home/centos/newcerts/* /root/newcerts/ && chown -Rfv root.root /root/newcerts/ && cp -Rfv /home/centos/newkeys/* /root/newkeys/ && chown -Rfv root.root /root/newkeys/
-			echo "Certificates and Keys have been moved into their staging directories at /root/newcerts and /root/newkeys"
-					
-		fi
+		if [ "$action" != 'remove' ] && [ "$action" == 'makecert' ]; then
+			if cp -Rfv /home/centos/newcerts/* /root/newcerts/ && chown -Rfv root.root /root/newcerts/ && cp -Rfv /home/centos/newkeys/* /root/newkeys/ && chown -Rfv root.root /root/newkeys/
+			then echo "Certificates and Keys have been moved into their staging directories at /root/newcerts and /root/newkeys"
+				else echo "Could not locate certificates in the centos/newcerts or centos/newkeys directories"
+				exit 1;
+			fi
 
-	
+		fi
 	if [ "$action" != 'remove' ];
 				then echo "Please note, you have 3 seconds to stop the script at each of these 3 steps before action is taken."
 	sleep 3
-				find ~/newcerts -type f -name "*.crt" -not -name "$domain.crt" \
+			if	find /root/newcerts -type f -name "*.crt" -not -name "$domain.crt" \
            -execdir mv -v {} "${domain}.crt" \;
-#			mv *.crt $domain.crt
-			
-				echo "SSL Certificates Processed"
-				fi
+#			
+			then echo "SSL Certificates Processed"
+				else echo "Could not process SSL Certificates at root/newcerts" 
+			fi	
+	fi
 	sleep 3		
 			if [ "$CA_needed" = 'false' ]; 
-				then mv "${domain}.crt" /etc/ssl/certs && echo "SSL Certificate installed successfully without CA Bundle"
+				then mv /root/newcerts/"${domain}.crt" /etc/ssl/certs && echo "SSL Certificate installed successfully without CA Bundle"
 			
 		elif [ "$CA_needed" != 'false' ] && [ "$action" != 'remove' ];
 			then echo "Preparing to Combine Certificate And CA Bundle"
-					elif  [ "$CA_needed" != 'false' ] && [ "$action" != 'remove' ];
+					if  [ "$CA_needed" != 'false' ] && [ "$action" != 'remove' ];
 						then find /root/newcerts -type f -name "*.ca-bundle" -not -name "$domain.ca-bundle" \
            -execdir mv -v {} "${domain}.ca-bundle" \;
-			elif [ "$CA_needed" != 'false' ] && [ "$action" != 'remove' ];
+					fi
+			if [ "$CA_needed" != 'false' ] && [ "$action" != 'remove' ];
 		then
-			cat /root/newcerts/"${domain}.ca-bundle" >> /root/newcerts/"${domain}.crt" && echo "Certificates merged successfully"
-
-		
+					if cat /root/newcerts/"${domain}.ca-bundle" >> /root/newcerts/"${domain}.crt"
+						then echo "Certificates merged successfully"
+							else echo "Certificate merge failed. Check to make sure you've uploaded the certificates correctly."
+							exit 1;
+					fi
+			fi
 			
-				elif [ "$CA_needed" != 'false' ] && [ "$action" != 'remove' ];
-					then mv /root/newcerts/"${domain}.crt" /etc/ssl/certs
-						elif [ "$action" == 'makecert' ];
-							then echo "Certificate and CA Bundle Installed Successfully"
-				
-				elif [ "$CA_needed" != 'false' ] && [ "$action" != 'remove' ];
-				then echo "Make sure you've uploaded your certificate(s) and private key in the previously instructed formats"
-				 
+				if [ "$CA_needed" != 'false' ] && [ "$action" != 'remove' ]; then
+					if mv /root/newcerts/"${domain}.crt" /etc/ssl/certs
+						then echo "Certificate and CA Bundle Installed Successfully" 
+				else		 	
+						echo "Make sure you've uploaded your certificate(s) and private key in the previously instructed formats"
+					
 				 exit 1;
+					fi
 				 fi
+			fi
+				 
 #			mv *.crt $domain.crt
 				 
 					#mv *.ca.crt $domain.ca.crt && cat $domain.ca.crt >> $domain.crt && echo "Certificates merged successfully" && mv $domain.crt /etc/ssl/certs && echo "Certificate and CA Bundle Installed Successfully"
@@ -357,17 +364,14 @@ fi
 	
 	
 	
-	if [ "$action" == 'makecert' ];
-	then find ~/newkeys -type f -name "*.key" -not -name "$domain.key" \
+	if [ "$action" == 'makecert' ]; then
+	find /root/newkeys -type f -name "*.key" -not -name "$domain.key" \
            -execdir mv -v {} "${domain}.key" \; && mv /root/newkeys/"${domain}.key" /etc/pki/tls/private &&  echo "Private key installed successfully, check to see if the cert is working over HTTPS.. Or did you think I was going to handle that part too?"			 
 
 #	mv *.key $domain.key && mv $domain.key /etc/pki/tls/private
-	         elif [ "$action" == 'makecert' ];
+	         else [ "$action" == 'makecert' ];
 			 		echo "Something went wrong. Review this script to ensure it is current with your OS version or distribution and get your sh!t together."
-			then
-	exit 1;
-			if [ "$action" == 'remove' ];
-				then exit 0;
-					fi       
+		
+		exit 1;
+			  
 fi
-
